@@ -3,7 +3,6 @@ package com.rostradamus.wologbackend.model;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.DynamicUpdate;
 
 import javax.persistence.*;
 import javax.validation.constraints.Email;
@@ -14,7 +13,6 @@ import java.util.Set;
 
 
 @Entity
-@DynamicUpdate
 @Table( name = "users",
         uniqueConstraints = {
           @UniqueConstraint(columnNames = "email")
@@ -52,12 +50,6 @@ public class User {
   public User(String email, String password, String firstName, String lastName) {
     this.email = email;
     this.password = password;
-    this.firstName = firstName;
-    this.lastName = lastName;
-  }
-
-  public User(String email, String firstName, String lastName) {
-    this.email = email;
     this.firstName = firstName;
     this.lastName = lastName;
   }
