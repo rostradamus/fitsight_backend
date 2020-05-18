@@ -1,5 +1,6 @@
 package com.rostradamus.wologbackend.model;
 
+
 import lombok.Data;
 
 import javax.persistence.*;
