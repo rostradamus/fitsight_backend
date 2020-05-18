@@ -8,6 +8,7 @@ import com.github.fge.jsonpatch.JsonPatchException;
 import com.rostradamus.wologbackend.model.User;
 import com.rostradamus.wologbackend.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,7 +43,6 @@ public class UserController {
   @PutMapping("/{id}")
   @PreAuthorize("hasRole('ROLE_USER')")
   public ResponseEntity<?> editUser(@PathVariable long id, @RequestBody User userRequest) {
-
     return ResponseEntity.ok(userRepository.save(userRequest));
   }
 
@@ -53,17 +53,21 @@ public class UserController {
     try {
       JsonNode patched = patch.apply(objectMapper.convertValue(targetUser, JsonNode.class));
       User patchedUser = objectMapper.treeToValue(patched, User.class);
-      userRepository.save(patchedUser);
+      return ResponseEntity.ok(userRepository.save(patchedUser));
     } catch (JsonPatchException | JsonProcessingException e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
-    return ResponseEntity.ok().build();
   }
 
   @DeleteMapping("/{id}")
   @PreAuthorize("hasRole('ROLE_USER')")
   public ResponseEntity<?> deleteUser(@PathVariable long id) {
-    userRepository.deleteById(id);
-    return ResponseEntity.ok().build();
+    try {
+      userRepository.deleteById(id);
+    } catch (EmptyResultDataAccessException e) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+
+    return ResponseEntity.noContent().build();
   }
 }
