@@ -1,5 +1,6 @@
 package com.rostradamus.wologbackend.security.jwt;
 
+import com.rostradamus.wologbackend.security.SecurityConstants;
 import com.rostradamus.wologbackend.security.service.UserDetailsImpl;
 import io.jsonwebtoken.*;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,8 @@ public class JwtUtils {
     UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
     return Jwts.builder()
+      .setIssuer(SecurityConstants.TOKEN_ISSUER)
+      .setAudience(SecurityConstants.TOKEN_AUDIENCE)
       .setSubject(userPrincipal.getEmail())
       .setIssuedAt(new Date())
       .setExpiration(new Date(new Date().getTime() + jwtExpirationMs))

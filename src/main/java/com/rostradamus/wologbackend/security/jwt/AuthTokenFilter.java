@@ -1,5 +1,6 @@
 package com.rostradamus.wologbackend.security.jwt;
 
+import com.rostradamus.wologbackend.security.SecurityConstants;
 import com.rostradamus.wologbackend.security.service.UserDetailsServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,10 +49,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
   }
 
   private String parseJwt(HttpServletRequest request) {
-    String headerAuth = request.getHeader("Authorization");
+    String headerAuth = request.getHeader(SecurityConstants.TOKEN_HEADER);
 
-    if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-      return headerAuth.substring(7);
+    if (StringUtils.hasText(headerAuth) && headerAuth.startsWith(SecurityConstants.TOKEN_PREFIX)) {
+      return headerAuth.replace(SecurityConstants.TOKEN_PREFIX, "");
     }
 
     return null;
