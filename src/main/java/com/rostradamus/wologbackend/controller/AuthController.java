@@ -56,14 +56,15 @@ public class AuthController {
     );
 
     SecurityContextHolder.getContext().setAuthentication(authentication);
-    String jwt = jwtUtils.generateJwtToken(authentication);
-    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-    List<String> roles = userDetails.getAuthorities().stream()
-      .map(GrantedAuthority::getAuthority)
-      .collect(Collectors.toList());
-    return ResponseEntity.ok()
-      .header(SecurityConstants.TOKEN_HEADER, SecurityConstants.TOKEN_PREFIX + jwt)
-      .body(new JwtResponse(jwt, userDetails.getId(), userDetails.getEmail(), roles));
+//    String jwt = jwtUtils.generateJwtToken(authentication);
+//    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+//    List<String> roles = userDetails.getAuthorities().stream()
+//      .map(GrantedAuthority::getAuthority)
+//      .collect(Collectors.toList());
+//    System.out.println(jwt);
+    return ResponseEntity.ok().build();
+//      .header(SecurityConstants.TOKEN_HEADER, SecurityConstants.TOKEN_PREFIX + jwt)
+//      .body(new JwtResponse(jwt, userDetails.getId(), userDetails.getEmail(), roles));
   }
 
   @PostMapping("/signup")
