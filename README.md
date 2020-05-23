@@ -1,3 +1,4 @@
+![Maven Build](https://github.com/rostradamus/wolog-backend/workflows/Maven%20Build/badge.svg)
 # WOLOG BACKEND
 
 TODO
@@ -11,7 +12,10 @@ TODO
 What things you need to install the software and how to install them
 
 ```
-TODO
+JAVA 14
+Maven
+Postgres
+Redis
 ```
 
 ### Installing

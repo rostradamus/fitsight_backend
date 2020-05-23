@@ -12,6 +12,7 @@ import com.rostradamus.wologbackend.security.jwt.JwtUtils;
 import com.rostradamus.wologbackend.security.service.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,6 +21,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import javax.validation.Valid;
 import java.util.HashSet;
@@ -78,13 +80,10 @@ public class AuthController {
 
     Set<Role> roles = new HashSet<>();
 
-    Optional<Role> userRole = roleRepository.findByName(ERole.ROLE_USER);
-    if (userRole.isEmpty()) {
-      log.info("User Role does NOT Exist");
-      return ResponseEntity.badRequest().build();
-    }
+    Role userRole = roleRepository.findByName(ERole.ROLE_USER)
+      .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST));
 
-    roles.add(userRole.get());
+    roles.add(userRole);
 
     user.setRoles(roles);
 
