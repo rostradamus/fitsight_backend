@@ -6,10 +6,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UserTest {
-  User testUser;
+  UnsafeUser testUser;
   @BeforeEach
   void beforeEach() {
-    testUser = new User();
+    testUser = new UnsafeUser();
   }
 
   @Test

@@ -11,6 +11,7 @@ import javax.validation.constraints.Size;
 import java.util.HashSet;
 import java.util.Set;
 
+
 @Entity
 @Table( name = "users",
   uniqueConstraints = {
@@ -19,27 +20,37 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class UnsafeUser {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
-  protected Long id;
+  private Long id;
 
   @NotBlank
   @Size(max = 50)
   @Email
-  protected String email;
+  private String email;
+
+  @NotBlank
+  private String password;
 
   @NotBlank
   @Size(max = 100)
-  protected String firstName;
+  private String firstName;
 
   @NotBlank
   @Size(max = 100)
-  protected String lastName;
+  private String lastName;
 
   @ManyToMany(fetch = FetchType.EAGER)
   @JoinTable( name = "user_roles",
-    joinColumns = @JoinColumn(name = "user_id"),
-    inverseJoinColumns = @JoinColumn(name = "role_id"))
-  protected Set<Role> roles = new HashSet<>();
+              joinColumns = @JoinColumn(name = "user_id"),
+              inverseJoinColumns = @JoinColumn(name = "role_id"))
+  private Set<Role> roles = new HashSet<>();
+
+  public UnsafeUser(String email, String password, String firstName, String lastName) {
+    this.email = email;
+    this.password = password;
+    this.firstName = firstName;
+    this.lastName = lastName;
+  }
 }

@@ -1,8 +1,8 @@
 package com.rostradamus.wologbackend.integration;
 
 import com.rostradamus.wologbackend.exception.UserNotFoundException;
-import com.rostradamus.wologbackend.model.User;
-import com.rostradamus.wologbackend.repository.UserRepository;
+import com.rostradamus.wologbackend.model.UnsafeUser;
+import com.rostradamus.wologbackend.repository.UnsafeUserRepository;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.assertj.core.api.Assertions.*;
@@ -20,22 +20,22 @@ public class UserRepositoryIntegrationTest {
   private TestEntityManager entityManager;
 
   @Autowired
-  private UserRepository userRepository;
+  private UnsafeUserRepository unsafeUserRepository;
 
   @Test
   public void whenFindByEmail_thenReturnUser() {
-    User testUser = new User("test@example.com", "TestPassword12#", "Test", "User");
+    UnsafeUser testUser = new UnsafeUser("test@example.com", "TestPassword12#", "Test", "User");
     entityManager.persist(testUser);
     entityManager.flush();
 
     try {
-      User found = userRepository.findByEmail("test@example.com").orElseThrow(UserNotFoundException::new);
+      UnsafeUser found = unsafeUserRepository.findByEmail("test@example.com").orElseThrow(UserNotFoundException::new);
       assertThat(found).isEqualTo(testUser);
     } catch (UserNotFoundException e) {
       fail();
     }
 
-    assertThatThrownBy(() -> userRepository.findByEmail("test_non_exist@example.com").orElseThrow(UserNotFoundException::new))
+    assertThatThrownBy(() -> unsafeUserRepository.findByEmail("test_non_exist@example.com").orElseThrow(UserNotFoundException::new))
       .isInstanceOf(UserNotFoundException.class);
   }
 }
