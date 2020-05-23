@@ -3,6 +3,7 @@ name: Jira
 on:
   push:
     branches:
+      - develop
       - issue-*
   pull_request:
     branches: 
