@@ -1,3 +1,4 @@
+![Java CI with Maven](https://github.com/rostradamus/wolog-backend/workflows/Java%20CI%20with%20Maven/badge.svg)
 # WOLOG BACKEND
 
 TODO
