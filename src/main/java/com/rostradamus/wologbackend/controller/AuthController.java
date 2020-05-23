@@ -9,6 +9,8 @@ import com.rostradamus.wologbackend.model.UnsafeUser;
 import com.rostradamus.wologbackend.repository.RoleRepository;
 import com.rostradamus.wologbackend.repository.UnsafeUserRepository;
 import com.rostradamus.wologbackend.security.jwt.JwtUtils;
+import com.rostradamus.wologbackend.security.refreshtoken.RefreshToken;
+import com.rostradamus.wologbackend.security.refreshtoken.RefreshTokenRepository;
 import com.rostradamus.wologbackend.security.service.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +47,9 @@ public class AuthController {
   RoleRepository roleRepository;
 
   @Autowired
+  RefreshTokenRepository refreshTokenRepository;
+
+  @Autowired
   PasswordEncoder passwordEncoder;
 
   @Autowired
@@ -62,6 +67,13 @@ public class AuthController {
     List<String> roles = userDetails.getAuthorities().stream()
       .map(GrantedAuthority::getAuthority)
       .collect(Collectors.toList());
+
+    RefreshToken refreshToken = new RefreshToken();
+
+    refreshToken.setUsername(userDetails.getUsername());
+    refreshTokenRepository.save(refreshToken);
+
+
     return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getEmail(), roles));
   }
 
