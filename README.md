@@ -11,7 +11,9 @@ TODO
 What things you need to install the software and how to install them
 
 ```
-TODO
+JAVA 14
+Maven
+Postgres
 ```
 
 ### Installing
