@@ -1,7 +1,7 @@
 package com.rostradamus.wologbackend.security.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.rostradamus.wologbackend.model.User;
+import com.rostradamus.wologbackend.model.UnsafeUser;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -31,7 +31,7 @@ public class UserDetailsImpl implements UserDetails {
     this.authorities = authorities;
   }
 
-  public static UserDetailsImpl build(User user) {
+  public static UserDetailsImpl build(UnsafeUser user) {
     List<GrantedAuthority> authorities = user.getRoles().stream()
       .map(role -> new SimpleGrantedAuthority(role.getName().name()))
       .collect(Collectors.toList());

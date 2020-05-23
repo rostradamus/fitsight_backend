@@ -5,9 +5,9 @@ import com.rostradamus.wologbackend.controller.payload.request.SignupRequest;
 import com.rostradamus.wologbackend.controller.payload.response.JwtResponse;
 import com.rostradamus.wologbackend.model.ERole;
 import com.rostradamus.wologbackend.model.Role;
-import com.rostradamus.wologbackend.model.User;
+import com.rostradamus.wologbackend.model.UnsafeUser;
 import com.rostradamus.wologbackend.repository.RoleRepository;
-import com.rostradamus.wologbackend.repository.UserRepository;
+import com.rostradamus.wologbackend.repository.UnsafeUserRepository;
 import com.rostradamus.wologbackend.security.jwt.JwtUtils;
 import com.rostradamus.wologbackend.security.service.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +37,7 @@ public class AuthController {
   AuthenticationManager authenticationManager;
 
   @Autowired
-  UserRepository userRepository;
+  UnsafeUserRepository unsafeUserRepository;
 
   @Autowired
   RoleRepository roleRepository;
@@ -65,11 +65,11 @@ public class AuthController {
 
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
-    if (userRepository.existsByEmail(signupRequest.getEmail())) {
+    if (unsafeUserRepository.existsByEmail(signupRequest.getEmail())) {
       return ResponseEntity.badRequest().build();
     }
 
-    User user = new User(
+    UnsafeUser user = new UnsafeUser(
       signupRequest.getEmail(),
       passwordEncoder.encode(signupRequest.getPassword()),
       signupRequest.getFirstName(),
@@ -88,6 +88,6 @@ public class AuthController {
 
     user.setRoles(roles);
 
-    return ResponseEntity.ok(userRepository.save(user));
+    return ResponseEntity.ok(unsafeUserRepository.save(user));
   }
 }

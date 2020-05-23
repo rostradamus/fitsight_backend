@@ -1,5 +1,6 @@
 package com.rostradamus.wologbackend.security.jwt;
 
+import com.rostradamus.wologbackend.security.SecurityConstants;
 import com.rostradamus.wologbackend.security.service.UserDetailsImpl;
 import io.jsonwebtoken.*;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @Slf4j
@@ -23,14 +25,17 @@ public class JwtUtils {
     UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
     return Jwts.builder()
-      .setSubject(userPrincipal.getEmail())
+      .setId(UUID.randomUUID().toString())
+      .setIssuer(SecurityConstants.TOKEN_ISSUER)
+      .setAudience(SecurityConstants.TOKEN_AUDIENCE)
+      .setSubject(userPrincipal.getUsername())
       .setIssuedAt(new Date())
       .setExpiration(new Date(new Date().getTime() + jwtExpirationMs))
       .signWith(SignatureAlgorithm.HS512, jwtSecret)
       .compact();
   }
 
-  public String getEmailFromJwtToken(String token) {
+  public String getUsernameFromJwtToken(String token) {
     return Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody().getSubject();
   }
 
