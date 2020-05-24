@@ -12,6 +12,7 @@ import com.rostradamus.wologbackend.security.jwt.JwtUtils;
 import com.rostradamus.wologbackend.security.refreshtoken.RefreshToken;
 import com.rostradamus.wologbackend.security.refreshtoken.RefreshTokenRepository;
 import com.rostradamus.wologbackend.security.service.UserDetailsImpl;
+import com.rostradamus.wologbackend.security.service.UserDetailsServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,13 +26,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.annotation.Nullable;
 import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -44,6 +44,9 @@ public class AuthController {
 
   @Autowired
   UnsafeUserRepository unsafeUserRepository;
+
+  @Autowired
+  UserDetailsServiceImpl userDetailsService;
 
   @Autowired
   RoleRepository roleRepository;
@@ -64,14 +67,13 @@ public class AuthController {
     );
 
     SecurityContextHolder.getContext().setAuthentication(authentication);
-    String jwt = jwtUtils.generateJwtToken(authentication);
     UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+    String jwt = jwtUtils.generateJwtToken(userDetails);
     List<String> roles = userDetails.getAuthorities().stream()
       .map(GrantedAuthority::getAuthority)
       .collect(Collectors.toList());
 
-    RefreshToken refreshToken = new RefreshToken();
-    refreshToken.setUsername(userDetails.getUsername());
+    RefreshToken refreshToken = new RefreshToken(userDetails.getUsername());
     refreshTokenRepository.save(refreshToken);
     Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
     refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
@@ -79,15 +81,40 @@ public class AuthController {
 //    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
     response.addCookie(refreshTokenCookie);
 
-    return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getEmail(), roles));
+    return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
   }
 
   @PostMapping("/refresh")
-  public ResponseEntity<?> refreshToken(@CookieValue(value = "refresh_token") String refreshToken) {
-    if (refreshTokenRepository.existsById(refreshToken)) {
-      return ResponseEntity.ok(refreshToken);
+  public ResponseEntity<?> refreshToken(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId,
+                                        HttpServletRequest request, HttpServletResponse response) {
+    if (refreshTokenId != null) {
+      RefreshToken refreshToken = refreshTokenRepository.findById(refreshTokenId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+      String username = refreshToken.getUsername();
+      UserDetailsImpl userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
+      String jwt = jwtUtils.generateJwtToken(userDetails);
+      List<String> roles = userDetails.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toList());
+
+      refreshTokenRepository.deleteById(refreshTokenId);
+      refreshTokenRepository.save(new RefreshToken(username));
+      Cookie existingCookie = Arrays.stream(request.getCookies())
+        .filter((Cookie cookie) -> cookie.getName().equals("refresh_token"))
+        .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST));
+      existingCookie.setValue(refreshToken.getId());
+//      Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
+      existingCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
+      existingCookie.setHttpOnly(true);
+//    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
+
+//      response.addCookie(originalTokenCookie);
+//      response.addCookie(refreshTokenCookie);
+
+      return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
     }
-    return ResponseEntity.badRequest().build();
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
   }
 
   @PostMapping("/signup")

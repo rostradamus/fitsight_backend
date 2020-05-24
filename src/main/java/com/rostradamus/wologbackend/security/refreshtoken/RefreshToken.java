@@ -25,4 +25,7 @@ public class RefreshToken implements Serializable {
 
   private String username;
 
+  public RefreshToken(String username) {
+    this.username = username;
+  }
 }
