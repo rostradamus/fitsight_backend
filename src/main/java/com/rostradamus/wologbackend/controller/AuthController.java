@@ -25,6 +25,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.util.HashSet;
 import java.util.List;
@@ -56,7 +58,7 @@ public class AuthController {
   JwtUtils jwtUtils;
 
   @PostMapping
-  public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+  public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) {
     Authentication authentication = authenticationManager.authenticate(
       new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
     );
@@ -69,12 +71,23 @@ public class AuthController {
       .collect(Collectors.toList());
 
     RefreshToken refreshToken = new RefreshToken();
-
     refreshToken.setUsername(userDetails.getUsername());
     refreshTokenRepository.save(refreshToken);
-
+    Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
+    refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
+    refreshTokenCookie.setHttpOnly(true);
+//    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
+    response.addCookie(refreshTokenCookie);
 
     return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getEmail(), roles));
+  }
+
+  @PostMapping("/refresh")
+  public ResponseEntity<?> refreshToken(@CookieValue(value = "refresh_token") String refreshToken) {
+    if (refreshTokenRepository.existsById(refreshToken)) {
+      return ResponseEntity.ok(refreshToken);
+    }
+    return ResponseEntity.badRequest().build();
   }
 
   @PostMapping("/signup")
