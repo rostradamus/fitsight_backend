@@ -22,7 +22,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -73,40 +75,33 @@ public class AuthController {
       .map(GrantedAuthority::getAuthority)
       .collect(Collectors.toList());
 
-    RefreshToken refreshToken = new RefreshToken(userDetails.getUsername());
-    refreshTokenRepository.save(refreshToken);
-    Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
-    refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
-    refreshTokenCookie.setHttpOnly(true);
-    refreshTokenCookie.setPath("/");
-//    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
-    response.addCookie(refreshTokenCookie);
+    this.processRefreshToken(response, userDetails.getUsername());
 
     return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
   }
 
   @PostMapping("/refresh")
   public ResponseEntity<?> refreshToken(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId,
-                                        HttpServletResponse response) {
+                                        HttpServletRequest request, HttpServletResponse response) {
     if (refreshTokenId != null) {
       RefreshToken existingToken = refreshTokenRepository.findById(refreshTokenId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 
       String username = existingToken.getUsername();
       UserDetailsImpl userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
+      UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+        userDetails, null, userDetails.getAuthorities());
+      authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+      SecurityContextHolder.getContext().setAuthentication(authentication);
+
       String jwt = jwtUtils.generateJwtToken(userDetails);
       List<String> roles = userDetails.getAuthorities().stream()
         .map(GrantedAuthority::getAuthority)
         .collect(Collectors.toList());
 
       refreshTokenRepository.deleteById(refreshTokenId);
-      RefreshToken refreshToken = refreshTokenRepository.save(new RefreshToken(username));
-      Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
-      refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
-      refreshTokenCookie.setHttpOnly(true);
-      refreshTokenCookie.setPath("/");
-//    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
-      response.addCookie(refreshTokenCookie);
+      this.processRefreshToken(response, username);
 
       return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
     }
@@ -136,5 +131,15 @@ public class AuthController {
     user.setRoles(roles);
 
     return ResponseEntity.ok(unsafeUserRepository.save(user));
+  }
+
+  private void processRefreshToken(HttpServletResponse response, String username) {
+    RefreshToken refreshToken = refreshTokenRepository.save(new RefreshToken(username));
+    Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
+    refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
+    refreshTokenCookie.setHttpOnly(true);
+    refreshTokenCookie.setPath("/");
+//    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
+    response.addCookie(refreshTokenCookie);
   }
 }
