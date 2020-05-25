@@ -78,6 +78,7 @@ public class AuthController {
     Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
     refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
     refreshTokenCookie.setHttpOnly(true);
+    refreshTokenCookie.setPath("/");
 //    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
     response.addCookie(refreshTokenCookie);
 
@@ -86,12 +87,12 @@ public class AuthController {
 
   @PostMapping("/refresh")
   public ResponseEntity<?> refreshToken(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId,
-                                        HttpServletRequest request, HttpServletResponse response) {
+                                        HttpServletResponse response) {
     if (refreshTokenId != null) {
-      RefreshToken refreshToken = refreshTokenRepository.findById(refreshTokenId)
+      RefreshToken existingToken = refreshTokenRepository.findById(refreshTokenId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 
-      String username = refreshToken.getUsername();
+      String username = existingToken.getUsername();
       UserDetailsImpl userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
       String jwt = jwtUtils.generateJwtToken(userDetails);
       List<String> roles = userDetails.getAuthorities().stream()
@@ -99,18 +100,13 @@ public class AuthController {
         .collect(Collectors.toList());
 
       refreshTokenRepository.deleteById(refreshTokenId);
-      refreshTokenRepository.save(new RefreshToken(username));
-      Cookie existingCookie = Arrays.stream(request.getCookies())
-        .filter((Cookie cookie) -> cookie.getName().equals("refresh_token"))
-        .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST));
-      existingCookie.setValue(refreshToken.getId());
-//      Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
-      existingCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
-      existingCookie.setHttpOnly(true);
+      RefreshToken refreshToken = refreshTokenRepository.save(new RefreshToken(username));
+      Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
+      refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
+      refreshTokenCookie.setHttpOnly(true);
+      refreshTokenCookie.setPath("/");
 //    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
-
-//      response.addCookie(originalTokenCookie);
-//      response.addCookie(refreshTokenCookie);
+      response.addCookie(refreshTokenCookie);
 
       return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
     }
