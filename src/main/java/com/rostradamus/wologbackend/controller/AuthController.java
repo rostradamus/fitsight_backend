@@ -6,8 +6,10 @@ import com.rostradamus.wologbackend.controller.payload.response.JwtResponse;
 import com.rostradamus.wologbackend.model.ERole;
 import com.rostradamus.wologbackend.model.Role;
 import com.rostradamus.wologbackend.model.UnsafeUser;
+import com.rostradamus.wologbackend.model.User;
 import com.rostradamus.wologbackend.repository.RoleRepository;
 import com.rostradamus.wologbackend.repository.UnsafeUserRepository;
+import com.rostradamus.wologbackend.repository.UserRepository;
 import com.rostradamus.wologbackend.security.jwt.JwtUtils;
 import com.rostradamus.wologbackend.security.refreshtoken.RefreshToken;
 import com.rostradamus.wologbackend.security.refreshtoken.RefreshTokenRepository;
@@ -20,9 +22,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.bind.annotation.*;
@@ -48,6 +50,9 @@ public class AuthController {
   UnsafeUserRepository unsafeUserRepository;
 
   @Autowired
+  UserRepository userRepository;
+
+  @Autowired
   UserDetailsServiceImpl userDetailsService;
 
   @Autowired
@@ -64,23 +69,40 @@ public class AuthController {
 
   @PostMapping
   public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) {
-    Authentication authentication = authenticationManager.authenticate(
-      new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
-    );
+    try {
+      Authentication authentication = authenticationManager.authenticate(
+        new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
+      );
+      SecurityContextHolder.getContext().setAuthentication(authentication);
+      UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+      String jwt = jwtUtils.generateJwtToken(userDetails);
+      List<String> roles = userDetails.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toList());
 
-    SecurityContextHolder.getContext().setAuthentication(authentication);
-    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-    String jwt = jwtUtils.generateJwtToken(userDetails);
-    List<String> roles = userDetails.getAuthorities().stream()
-      .map(GrantedAuthority::getAuthority)
-      .collect(Collectors.toList());
+      this.processRefreshToken(response, userDetails.getUsername());
+      User user = userRepository.findById(userDetails.getId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
 
-    this.processRefreshToken(response, userDetails.getUsername());
-
-    return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
+      return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles, user));
+    } catch (AuthenticationException e) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+    }
   }
 
-  @PostMapping("/refresh")
+  @DeleteMapping
+  public ResponseEntity<?> logout(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId, HttpServletResponse response) {
+    if (refreshTokenId != null) {
+      refreshTokenRepository.deleteById(refreshTokenId);
+      Cookie refreshTokenCookie = new Cookie("refresh_token", null);
+      refreshTokenCookie.setMaxAge(0); // immediately expire
+      refreshTokenCookie.setPath("/");
+      response.addCookie(refreshTokenCookie);
+    }
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/refresh_token")
   public ResponseEntity<?> refreshToken(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId,
                                         HttpServletRequest request, HttpServletResponse response) {
     if (refreshTokenId != null) {
@@ -102,8 +124,10 @@ public class AuthController {
 
       refreshTokenRepository.deleteById(refreshTokenId);
       this.processRefreshToken(response, username);
+      User user = userRepository.findById(userDetails.getId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
 
-      return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles));
+      return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles, user));
     }
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
   }
@@ -111,7 +135,7 @@ public class AuthController {
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
     if (unsafeUserRepository.existsByEmail(signupRequest.getEmail())) {
-      return ResponseEntity.badRequest().build();
+      return ResponseEntity.unprocessableEntity().build();
     }
 
     UnsafeUser user = new UnsafeUser(
@@ -130,7 +154,8 @@ public class AuthController {
 
     user.setRoles(roles);
 
-    return ResponseEntity.ok(unsafeUserRepository.save(user));
+    unsafeUserRepository.save(user);
+    return ResponseEntity.ok().build();
   }
 
   private void processRefreshToken(HttpServletResponse response, String username) {
