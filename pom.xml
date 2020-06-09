@@ -8,10 +8,10 @@
 		<version>2.2.7.RELEASE</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.rostradamus</groupId>
-	<artifactId>wolog-backend</artifactId>
+	<groupId>com.rostradamus.fitsight</groupId>
+	<artifactId>backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>wolog-backend</name>
+	<name>backend</name>
 	<description>Workout planning and tracking service</description>
 
 	<properties>
