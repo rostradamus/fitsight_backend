@@ -36,10 +36,4 @@ public class User {
   @NotBlank
   @Size(max = 100)
   protected String lastName;
-
-  @ManyToMany(fetch = FetchType.EAGER)
-  @JoinTable( name = "user_roles",
-    joinColumns = @JoinColumn(name = "user_id"),
-    inverseJoinColumns = @JoinColumn(name = "role_id"))
-  protected Set<Role> roles = new HashSet<>();
 }

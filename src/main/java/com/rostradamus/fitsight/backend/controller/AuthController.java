@@ -3,13 +3,18 @@ package com.rostradamus.fitsight.backend.controller;
 import com.rostradamus.fitsight.backend.controller.payload.request.LoginRequest;
 import com.rostradamus.fitsight.backend.controller.payload.request.SignupRequest;
 import com.rostradamus.fitsight.backend.controller.payload.response.JwtResponse;
+import com.rostradamus.fitsight.backend.model.User;
 import com.rostradamus.fitsight.backend.repository.RoleRepository;
 import com.rostradamus.fitsight.backend.model.ERole;
 import com.rostradamus.fitsight.backend.model.Role;
 import com.rostradamus.fitsight.backend.model.UnsafeUser;
 import com.rostradamus.fitsight.backend.repository.UnsafeUserRepository;
+import com.rostradamus.fitsight.backend.repository.UserRepository;
 import com.rostradamus.fitsight.backend.security.jwt.JwtUtils;
+import com.rostradamus.fitsight.backend.security.refreshtoken.RefreshToken;
+import com.rostradamus.fitsight.backend.security.refreshtoken.RefreshTokenRepository;
 import com.rostradamus.fitsight.backend.security.service.UserDetailsImpl;
+import com.rostradamus.fitsight.backend.security.service.UserDetailsServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,16 +22,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.annotation.Nullable;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -41,7 +50,16 @@ public class AuthController {
   UnsafeUserRepository unsafeUserRepository;
 
   @Autowired
+  UserRepository userRepository;
+
+  @Autowired
+  UserDetailsServiceImpl userDetailsService;
+
+  @Autowired
   RoleRepository roleRepository;
+
+  @Autowired
+  RefreshTokenRepository refreshTokenRepository;
 
   @Autowired
   PasswordEncoder passwordEncoder;
@@ -50,24 +68,74 @@ public class AuthController {
   JwtUtils jwtUtils;
 
   @PostMapping
-  public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-    Authentication authentication = authenticationManager.authenticate(
-      new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
-    );
+  public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) {
+    try {
+      Authentication authentication = authenticationManager.authenticate(
+        new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
+      );
+      SecurityContextHolder.getContext().setAuthentication(authentication);
+      UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+      String jwt = jwtUtils.generateJwtToken(userDetails);
+      List<String> roles = userDetails.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toList());
 
-    SecurityContextHolder.getContext().setAuthentication(authentication);
-    String jwt = jwtUtils.generateJwtToken(authentication);
-    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-    List<String> roles = userDetails.getAuthorities().stream()
-      .map(GrantedAuthority::getAuthority)
-      .collect(Collectors.toList());
-    return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getEmail(), roles));
+      this.processRefreshToken(response, userDetails.getUsername());
+      User user = userRepository.findById(userDetails.getId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+
+      return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles, user));
+    } catch (AuthenticationException e) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+    }
+  }
+
+  @DeleteMapping
+  public ResponseEntity<?> logout(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId, HttpServletResponse response) {
+    if (refreshTokenId != null) {
+      refreshTokenRepository.deleteById(refreshTokenId);
+      Cookie refreshTokenCookie = new Cookie("refresh_token", null);
+      refreshTokenCookie.setMaxAge(0); // immediately expire
+      refreshTokenCookie.setPath("/");
+      response.addCookie(refreshTokenCookie);
+    }
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/refresh_token")
+  public ResponseEntity<?> refreshToken(@Nullable @CookieValue(value = "refresh_token") String refreshTokenId,
+                                        HttpServletRequest request, HttpServletResponse response) {
+    if (refreshTokenId != null) {
+      RefreshToken existingToken = refreshTokenRepository.findById(refreshTokenId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+      String username = existingToken.getUsername();
+      UserDetailsImpl userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
+      UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+        userDetails, null, userDetails.getAuthorities());
+      authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+      SecurityContextHolder.getContext().setAuthentication(authentication);
+
+      String jwt = jwtUtils.generateJwtToken(userDetails);
+      List<String> roles = userDetails.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toList());
+
+      refreshTokenRepository.deleteById(refreshTokenId);
+      this.processRefreshToken(response, username);
+      User user = userRepository.findById(userDetails.getId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+
+      return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), roles, user));
+    }
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
   }
 
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
     if (unsafeUserRepository.existsByEmail(signupRequest.getEmail())) {
-      return ResponseEntity.badRequest().build();
+      return ResponseEntity.unprocessableEntity().build();
     }
 
     UnsafeUser user = new UnsafeUser(
@@ -86,6 +154,17 @@ public class AuthController {
 
     user.setRoles(roles);
 
-    return ResponseEntity.ok(unsafeUserRepository.save(user));
+    unsafeUserRepository.save(user);
+    return ResponseEntity.ok().build();
+  }
+
+  private void processRefreshToken(HttpServletResponse response, String username) {
+    RefreshToken refreshToken = refreshTokenRepository.save(new RefreshToken(username));
+    Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getId());
+    refreshTokenCookie.setMaxAge(1 * 24 * 60 * 60); // expires in 7 days
+    refreshTokenCookie.setHttpOnly(true);
+    refreshTokenCookie.setPath("/");
+//    refreshTokenCookie.setSecure(true); // TODO: Enable this when deploy to production is ready
+    response.addCookie(refreshTokenCookie);
   }
 }

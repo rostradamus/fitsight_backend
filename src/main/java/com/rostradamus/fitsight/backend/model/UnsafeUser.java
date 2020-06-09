@@ -1,5 +1,6 @@
 package com.rostradamus.fitsight.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -31,6 +32,7 @@ public class UnsafeUser {
   private String email;
 
   @NotBlank
+//  @JsonIgnore
   private String password;
 
   @NotBlank
