@@ -1,5 +1,5 @@
-![Maven Build](https://github.com/rostradamus/wolog-backend/workflows/Maven%20Build/badge.svg)
-# WOLOG BACKEND
+![Maven Build](https://github.com/rostradamus/fitsight-backend/workflows/Maven%20Build/badge.svg)
+# FITSIGHT BACKEND
 
 TODO
 
